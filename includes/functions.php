@@ -1,0 +1,187 @@
+<?php
+function deleteItem ($conn, $productId) {
+  $userId = $_SESSION['userid'];
+  $query = "DELETE FROM cart WHERE userId= $userId AND productId= $productId";
+
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+}
+
+function addToCart ($conn, $productId, $quantity) {
+  $userId = $_SESSION['userid'];
+  $query = "INSERT INTO cart
+  (userId,productId,quantity)
+  VALUES($userId,$productId,$quantity)";
+
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+}
+
+function countItem ($conn) {
+  $countItems = 0;
+  $_SESSION['orderCount'] = $countItems;
+  $order = getOrder($conn);
+  if (isset($_SESSION['status'])){
+    while ($row = mysqli_fetch_array($order)) {
+      $countItems += $row['quantity'];
+      $_SESSION['orderCount'] = $countItems;
+    }
+  }
+}
+
+function changeQuantity ($conn, $quantity, $productId) {
+  $userId = $_SESSION['userid'];
+    $query = "UPDATE cart
+			SET quantity='$quantity'
+      WHERE userId=$userId AND productId=$productId";
+      
+    $result = mysqli_query($conn,$query) or die("Query failed: $query");
+}
+
+
+function getOrder ($conn) {
+  if (isset($_SESSION['status'])) {
+    $userId = $_SESSION['userid'];
+    $query = "SELECT * FROM users 
+    INNER JOIN cart ON users.userId = cart.userId
+    INNER JOIN products ON products.productId = cart.productId
+    WHERE users.userId = $userId";
+
+    $result = mysqli_query($conn,$query) or die("Query failed: $query");
+
+    return $result;
+  }
+}
+
+function encryptPassword ($password) {
+  return password_hash ($password , PASSWORD_DEFAULT); 
+}
+
+function verifyPassword ($password, $hashedPassword) {
+  return password_verify ($password , $hashedPassword);
+}
+
+function logOut () {
+  // Nollställer sessionsvariabeln
+  unset($_SESSION['status']);
+  
+  // Återställer hela sessionen och tömmer innehållet i alla sessionsvariabler
+  session_destroy();
+}
+
+function getProducts ($conn) {
+  $query = "SELECT * FROM products";
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+
+  return $result;
+}
+
+function checkLogin ($conn) {
+  $userName = mysqli_real_escape_string($conn,$_POST['userName']);
+  $password = mysqli_real_escape_string($conn,$_POST['password']);
+
+  $query = "SELECT * FROM users
+    WHERE userName = '$userName'";
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+  $row = mysqli_fetch_assoc($result);
+  $count = mysqli_num_rows($result);
+  
+  if($count == 1) {
+    // Kontrollerar lösenordet, använder password_hash för att kontrollera hash mot databasen
+    if (password_verify($password, $row["password"])) {
+      $_SESSION['status'] = "ok";
+      $_SESSION['userid'] = $row["userId"];
+      return true;
+    } else {
+      return false;
+    }
+  }
+}
+
+/*
+* Skapar databaskopplingen
+*/
+function dbConnect(){
+	$connection = mysqli_connect("localhost", "root", "", "shop") or die("Could not connect");
+  mysqli_select_db($connection,"shop") or die("Could not select database");
+	return $connection;
+}
+	
+/*
+* stänger databaskopplingen
+*/
+  
+function dbDisconnect($connection){
+  mysqli_close($connection);
+}
+
+// API
+
+function register ($conn) {
+  $userName = $_POST['userName'];
+  $password = $_POST['password'];
+  $email = $_POST['email'];
+  $firstName = $_POST['firstName'];
+  $lastName = $_POST['lastName'];
+  $passwordHash = encryptPassword ($password);
+
+  $query = "INSERT INTO users
+  (userName,password,email,firstName,lastName)
+  VALUES('$userName','$passwordHash','$email','$firstName','$lastName')";
+
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+  $insId = mysqli_insert_id($conn);
+
+  return $insId;
+}
+
+function getUsers ($conn) {
+  $query = "SELECT * FROM users";
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+  $row = mysqli_fetch_all($result);
+
+
+  return $row;
+}
+
+
+// function getUserData($conn,$userId){
+//   $query = "SELECT * FROM users
+//     WHERE userId=".$userId;
+
+//   $result = mysqli_query($conn,$query) or die("Query failed: $query");
+
+//   $row = mysqli_fetch_all($result);
+
+//   return $row;
+// }
+
+function deleteUser ($conn, $userId) {
+  $query = "DELETE FROM users WHERE userId= $userId";
+
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+}
+
+function updateUser ($conn, $userName, $password, $firstName, $lastName, $email) {
+    $query = "UPDATE users
+			SET 
+        password='$password',
+        firstName='$firstName',
+        lastName='$lastName',
+        email='$email'
+      WHERE userName='$userName'";
+      
+    $result = mysqli_query($conn,$query) or die("Query failed: $query");
+}
+function getUserData($conn,$userId){
+  $query = "SELECT users.userName, products.productBrand
+            FROM products INNER JOIN cart
+            ON products.productId = cart.productId
+            INNER JOIN users
+            ON cart.userId = users.userId
+            WHERE users.userId = '$userId'";
+
+  $result = mysqli_query($conn,$query) or die("Query failed: $query");
+
+  $row = mysqli_fetch_all($result);
+
+  return $row;
+}
